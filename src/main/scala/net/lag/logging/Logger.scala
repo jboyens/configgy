@@ -31,7 +31,7 @@ sealed case class Level(name: String, value: Int) extends javalog.Level(name, va
 }
 
 object Level {
-  case object OFF extends Level("OFF", Math.MAX_INT)
+  case object OFF extends Level("OFF", Int.MaxValue)
   case object FATAL extends Level("FATAL", 1000)
   case object CRITICAL extends Level("CRITICAL", 970)
   case object ERROR extends Level("ERROR", 930)
@@ -39,7 +39,7 @@ object Level {
   case object INFO extends Level("INFO", 800)
   case object DEBUG extends Level("DEBUG", 500)
   case object TRACE extends Level("TRACE", 400)
-  case object ALL extends Level("ALL", Math.MIN_INT)
+  case object ALL extends Level("ALL", Int.MinValue)
 }
 
 
@@ -333,7 +333,7 @@ object Logger {
       val item = manager.getLogger(e.nextElement.asInstanceOf[String])
       if (item ne null) loggers += get(item.getName)
     }
-    loggers.elements
+    loggers.iterator
   }
 
   /**

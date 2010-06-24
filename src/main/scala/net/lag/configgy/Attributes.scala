@@ -40,7 +40,7 @@ private[configgy] class Attributes(val config: Config, val name: String) extends
   var inheritFrom: Option[ConfigMap] = None
 
 
-  def keys: Iterator[String] = cells.keys
+  def keys: Iterable[String] = cells.keys
 
   def getName() = name
 
@@ -273,7 +273,7 @@ private[configgy] class Attributes(val config: Config, val name: String) extends
     recurse(key) match {
       case Some((attr, name)) => attr.remove(name)
       case None => {
-        cells.removeKey(key) match {
+        cells.remove(key) match {
           case Some(_) => true
           case None => false
         }
@@ -285,11 +285,11 @@ private[configgy] class Attributes(val config: Config, val name: String) extends
     var ret = immutable.Map.empty[String, String]
     for ((key, value) <- cells) {
       value match {
-        case StringCell(x) => ret = ret.update(key, x)
-        case StringListCell(x) => ret = ret.update(key, x.mkString("[", ",", "]"))
+        case StringCell(x) => ret = ret.updated(key, x)
+        case StringListCell(x) => ret = ret.updated(key, x.mkString("[", ",", "]"))
         case AttributesCell(x) =>
           for ((k, v) <- x.asMap) {
-            ret = ret.update(key + "." + k, v)
+            ret = ret.updated(key + "." + k, v)
           }
       }
     }

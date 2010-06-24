@@ -58,7 +58,7 @@ trait Importer {
     while (n >= 0) {
       n = reader.read(buffer, 0, buffer.length)
       if (n >= 0) {
-        out.append(buffer, 0, n)
+        out.appendAll(buffer, 0, n)
       }
     }
     out.toString

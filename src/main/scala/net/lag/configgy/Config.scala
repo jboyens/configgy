@@ -80,7 +80,7 @@ private class SubscriptionNode {
      */
     var nextNodes: Iterator[(String, SubscriptionNode)] = null
     key match {
-      case Nil => nextNodes = map.elements
+      case Nil => nextNodes = map.iterator
       case segment :: _ => {
         map.get(segment) match {
             case None => return     // done!
@@ -260,7 +260,7 @@ class Config extends ConfigMap {
       }
     }
     // unregister nodes that vanished
-    (jmxNodes -- nodeNames).foreach { name => mbs.unregisterMBean(new jmx.ObjectName(name)) }
+    (jmxNodes filterNot (nodeNames contains)).foreach { name => mbs.unregisterMBean(new jmx.ObjectName(name)) }
 
     jmxNodes = nodeNames
     jmxPackageName = packageName
@@ -319,7 +319,7 @@ class Config extends ConfigMap {
   def setConfigMap(key: String, value: ConfigMap): Unit = root.setConfigMap(key, value)
   def contains(key: String): Boolean = root.contains(key)
   def remove(key: String): Boolean = root.remove(key)
-  def keys: Iterator[String] = root.keys
+  def keys: Iterable[String] = root.keys
   def asMap(): Map[String, String] = root.asMap()
   def toConfigString = root.toConfigString
   def copy(): ConfigMap = root.copy()
@@ -402,7 +402,7 @@ object Config {
    */
   def fromMap(m: Map[String, String]) = {
     val config = new Config
-    for ((k, v) <- m.elements) {
+    for ((k, v) <- m.iterator) {
       config(k) = v
     }
     config

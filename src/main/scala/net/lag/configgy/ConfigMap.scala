@@ -110,7 +110,7 @@ trait ConfigMap {
   /**
    * Return an iterator across the keys of this map.
    */
-  def keys: Iterator[String]
+  def keys: Iterable[String]
 
   /**
    * Return a new (immutable) map containing a deep copy of all the keys
@@ -344,7 +344,7 @@ trait ConfigMap {
         log.warning("Ignoring config key '%s' which doesn't have a setter in class %s", key, cls)
       }
       setters.foreach { method =>
-        val expectedType = method.getParameterTypes().first.getCanonicalName
+        val expectedType = method.getParameterTypes().head.getCanonicalName
         val param = expectedType match {
           case "int" => getInt(key)
           case "long" => getLong(key)
