@@ -104,10 +104,11 @@ object LoggingSpec extends Specification with TestHelper {
     }
 
     "provide level name and value maps" in {
-      Logger.levels mustEqual Map(Level.TRACE.value -> Level.TRACE, Level.DEBUG.value -> Level.DEBUG,
-        Level.INFO.value -> Level.INFO, Level.WARNING.value -> Level.WARNING, Level.ERROR.value -> Level.ERROR,
-        Level.CRITICAL.value -> Level.CRITICAL, Level.FATAL.value -> Level.FATAL, Level.OFF.value -> Level.OFF)
-      Logger.levelNames mustEqual Map("TRACE" -> Level.TRACE, "DEBUG" -> Level.DEBUG,
+      Logger.levels mustEqual Map(Level.ALL.value -> Level.ALL, Level.TRACE.value -> Level.TRACE, 
+        Level.DEBUG.value -> Level.DEBUG, Level.INFO.value -> Level.INFO, Level.WARNING.value -> Level.WARNING, 
+        Level.ERROR.value -> Level.ERROR, Level.CRITICAL.value -> Level.CRITICAL, Level.FATAL.value -> Level.FATAL, 
+        Level.OFF.value -> Level.OFF)
+      Logger.levelNames mustEqual Map("ALL" -> Level.ALL, "TRACE" -> Level.TRACE, "DEBUG" -> Level.DEBUG,
         "INFO" -> Level.INFO, "WARNING" -> Level.WARNING, "ERROR" -> Level.ERROR,
         "CRITICAL" -> Level.CRITICAL, "FATAL" -> Level.FATAL, "OFF" -> Level.OFF)
     }
@@ -343,6 +344,7 @@ object LoggingSpec extends Specification with TestHelper {
       syslog.clearServerName
       log.debug("and debug!")
 
+      Future.sync
       val p = new DatagramPacket(new Array[Byte](1024), 1024)
       serverSocket.receive(p)
       new String(p.getData, 0, p.getLength) mustEqual "<9>2008-03-29T05:53:16 raccoon.local whiskey: fatal message!"
@@ -358,6 +360,7 @@ object LoggingSpec extends Specification with TestHelper {
       log.addHandler(syslog)
       log.info("here's an info message with BSD time.")
       serverSocket.receive(p)
+      Future.sync
       new String(p.getData, 0, p.getLength) mustEqual "<14>Mar 29 05:53:16 raccoon.local whiskey: here's an info message with BSD time."
     }
 
@@ -392,18 +395,19 @@ object LoggingSpec extends Specification with TestHelper {
         val TEST_DATA =
           "node=\"net.lag\"\n" +
           "syslog_host=\"example.com:212\"\n" +
-          "syslog_server_name=\"elmo\"\n"
+          "syslog_server_name=\"elmo\"\n" +
+          "syslog_priority=128\n"
 
         val c = new Config
         c.load(TEST_DATA)
         val log = Logger.configure(c, false, true)
 
         log.getHandlers.length mustEqual 1
-        val h = log.getHandlers()(0)
-        h.isInstanceOf[SyslogHandler] mustEqual true
-        h.asInstanceOf[SyslogHandler].dest.asInstanceOf[InetSocketAddress].getHostName mustEqual "example.com"
-        h.asInstanceOf[SyslogHandler].dest.asInstanceOf[InetSocketAddress].getPort mustEqual 212
-        h.asInstanceOf[SyslogHandler].serverName mustEqual "elmo"
+        val h = log.getHandlers()(0).asInstanceOf[SyslogHandler]
+        h.dest.asInstanceOf[InetSocketAddress].getHostName mustEqual "example.com"
+        h.dest.asInstanceOf[InetSocketAddress].getPort mustEqual 212
+        h.serverName mustEqual "elmo"
+        h.priority mustEqual 128
       }
     }
 

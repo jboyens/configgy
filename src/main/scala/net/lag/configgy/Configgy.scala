@@ -33,9 +33,16 @@ object Configgy {
    */
   def config = _config
 
-  // remember the previous path/filename we loaded, for reload().
-  private var previousPath: String = null
-  private var previousFilename: String = null
+  /** 
+   * Sets the base Config object for this server.  You might want to 
+   * call one of the configure methods instead of this, but if those
+   * don't work for your needs, use this as a fallback.
+   */
+  def config_=(c: Config) {
+    Logger.reset
+    _config = c
+    configLogging
+  }
 
   /**
    * Configure the server by loading a config file from the given path
@@ -43,12 +50,7 @@ object Configgy {
    * used to resolve filenames given in "include" lines.
    */
   def configure(path: String, filename: String): Unit = {
-    Logger.reset
-    _config = Config.fromFile(path, filename)
-    configLogging
-
-    previousPath = path
-    previousFilename = filename
+    config = Config.fromFile(path, filename)
   }
 
   /**
@@ -71,15 +73,7 @@ object Configgy {
    * verify and commit the change (even if their nodes didn't actually
    * change).
    */
-  def reload: Unit = {
-    try {
-      _config.loadFile(previousPath, previousFilename)
-    } catch {
-      case e: Throwable =>
-        Logger.get.critical(e, "Failed to reload config file '%s/%s'", previousPath, previousFilename)
-        throw e
-    }
-  }
+  def reload() = _config.reload()
 
   /**
    * Configure the server by loading a config file from the given named
@@ -87,9 +81,7 @@ object Configgy {
    * on resource paths.
    */
   def configureFromResource(name: String) = {
-    Logger.reset
-    _config = Config.fromResource(name)
-    configLogging
+    config = Config.fromResource(name)
   }
 
   /**
@@ -98,9 +90,14 @@ object Configgy {
    * "include" lines will also operate on resource paths.
    */
   def configureFromResource(name: String, classLoader: ClassLoader) = {
-    Logger.reset
-    _config = Config.fromResource(name, classLoader)
-    configLogging
+    config = Config.fromResource(name, classLoader)
+  }
+
+  /**
+   * Configure the server by loading config data from given string.
+   */
+  def configureFromString(data: String) = {
+    config = Config.fromString(data)
   }
 
   private def configLogging = {
@@ -127,7 +124,6 @@ object Configgy {
   def configLogging(config: ConfigMap): Unit = synchronized {
     subscriber.commit(None, Some(config))
   }
-
 
   private class LoggingConfigSubscriber extends Subscriber {
     @throws(classOf[ValidationException])

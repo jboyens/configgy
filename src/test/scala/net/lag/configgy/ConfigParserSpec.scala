@@ -20,10 +20,10 @@ import org.specs._
 import net.lag.extensions._
 
 
-object ConfigParserSpec extends Specification {
+class ConfigParserSpec extends Specification {
 
   class FakeImporter extends Importer {
-    def importFile(filename: String): String = {
+    def importFile(filename: String, required: Boolean): String = {
       filename match {
         case "test1" =>
           "staff = \"weird skull\"\n"
@@ -38,6 +38,8 @@ object ConfigParserSpec extends Specification {
           "cat ?= \"blah\"\n"
         case "test4" =>
           "cow=\"moo\"\n"
+        case "test5" =>
+          if (!required) "" else throw new ParseException("File not found")
       }
     }
   }
@@ -146,6 +148,33 @@ object ConfigParserSpec extends Specification {
         "include \"test2\"\n" +
         "include \"test4\"\n"
       parse(data2).toString mustEqual "{: cow=\"moo\" inner={inner: cat=\"meow\" dog=\"bark\" } toplevel=\"hat\" }"
+    }
+
+    "import optional files" in {
+      val data1 =
+        "toplevel=\"skeletor\"\n" +
+        "<inner>\n" +
+        "    include? \"test1\"\n" +
+        "    home = \"greyskull\"\n" +
+        "</inner>\n"
+      parse(data1).toString mustEqual "{: inner={inner: home=\"greyskull\" staff=\"weird skull\" } toplevel=\"skeletor\" }"
+
+      val data2 =
+        "toplevel=\"hat\"\n" +
+        "include? \"test2\"\n" +
+        "include \"test4\"\n" +
+        "include? \"test5\"\n"
+      parse(data2).toString mustEqual "{: cow=\"moo\" inner={inner: cat=\"meow\" dog=\"bark\" } toplevel=\"hat\" }"
+    }
+
+    "throw an exception when importing non-existent file" in {
+      val data1 = "include \"test5\"\n"
+      parse(data1) must throwA(new ParseException("File not found"))
+    }
+
+    "ignore optionally imported non-existent file" in {
+      val data1 = "include? \"test5\"\n"
+      parse(data1).toString mustEqual "{: }"
     }
 
     "refuse to overload key types" in {
@@ -308,7 +337,7 @@ object ConfigParserSpec extends Specification {
         "    useLess = 3\n" +
         "</daemon>\n"
       val exp =
-        "{: daemon={daemon: useless=\"3\" } }"
+        "{: daemon={daemon: useLess=\"3\" } }"
       val a = parse(data)
       a.toString mustEqual exp
       a.getString("daemon.useLess", "14") mustEqual "3"
@@ -336,7 +365,7 @@ object ConfigParserSpec extends Specification {
         "    </baseDat>\n" +
         "</daemon>\n"
       val exp =
-        "{: daemon={daemon: basedat={daemon.baseDat: ulimit_fd=\"32768\" } } }"
+        "{: daemon={daemon: baseDat={daemon.baseDat: ulimit_fd=\"32768\" } } }"
       val a = parse(data)
       a.toString mustEqual exp
       a.getString("daemon.baseDat.ulimit_fd", "14") mustEqual "32768"
@@ -376,7 +405,7 @@ object ConfigParserSpec extends Specification {
       a.getString("upp.uid", "1") mustEqual "16"
     }
 
-   "handle a complex case" in {
+    "handle a complex case" in {
       val data =
         "<daemon>\n" +
         "    useLess = 3\n" +
@@ -396,9 +425,9 @@ object ConfigParserSpec extends Specification {
         "    someInt=1\n" +
         "</upp>\n"
       val exp =
-        "{: daemon={daemon: base-dat={daemon.base-dat: ulimit_fd=\"32768\" } useless=\"3\" } " +
+        "{: daemon={daemon: base-dat={daemon.base-dat: ulimit_fd=\"32768\" } useLess=\"3\" } " +
         "upp={upp (inherit=daemon.base-dat): alpha={upp.alpha (inherit=upp): name=\"alpha\" } " +
-        "beta={upp.beta (inherit=daemon): name=\"beta\" } someint=\"1\" uid=\"16\" } }"
+        "beta={upp.beta (inherit=daemon): name=\"beta\" } someInt=\"1\" uid=\"16\" } }"
       val a = parse(data)
       a.toString mustEqual exp
       a.getString("daemon.useLess", "14") mustEqual "3"
@@ -408,10 +437,52 @@ object ConfigParserSpec extends Specification {
       a.getString("upp.alpha.name", "") mustEqual "alpha"
       a.getString("upp.beta.name", "") mustEqual "beta"
       a.getString("upp.alpha.ulimit_fd", "") mustEqual "32768"
-      a.getString("upp.beta.useless", "") mustEqual "3"
-      a.getString("upp.alpha.useless", "") mustEqual ""
+      a.getString("upp.beta.useLess", "") mustEqual "3"
+      a.getString("upp.alpha.useLess", "") mustEqual ""
       a.getString("upp.beta.ulimit_fd", "") mustEqual ""
       a.getString("upp.someInt", "4") mustEqual "1"
+    }
+
+    "inherit should apply explicitly" in {
+      val data =
+        "sanfrancisco {\n" +
+        "  beer {\n" +
+        "    racer5 = 10\n" +
+        "  }\n" +
+        "}\n" +
+        "\n" +
+        "atlanta (inherit=\"sanfrancisco\") {\n" +
+        "  beer (inherit=\"sanfrancisco.beer\") {\n" +
+        "    redbrick = 9\n" +
+        "  }\n" +
+        "}\n"
+      val a = parse(data)
+      a.configMap("sanfrancisco").inheritFrom mustEqual None
+      a.configMap("sanfrancisco.beer").inheritFrom mustEqual None
+      a.configMap("atlanta").inheritFrom.get.toString mustMatch "sanfrancisco.*"
+      a.configMap("atlanta.beer").inheritFrom.get.toString mustMatch "sanfrancisco\\.beer.*"
+      a.getString("sanfrancisco.beer.deathandtaxes.etc") mustEqual None
+    }
+
+    "don't choke on poundsign in strings" in {
+      val data =
+        "irc {\n" +
+        "  channel = \"#turtle\"\n" +
+        "  server = \"irc.example.com\"\n" +
+        "  username = \"user\"\n" +
+        "  password = \"pass\"\n" +
+        "}\n"
+      val a = parse(data)
+      a("irc.channel") mustEqual "#turtle"
+      a("irc.server") mustEqual "irc.example.com"
+    }
+
+    "read a really long list of strings without recursing to death" in {
+      skip("not fixed yet")
+      val c = new Config
+      c.importer = new ResourceImporter(getClass.getClassLoader)
+      c.load("include \"evil.conf\"\n")
+      c.getList("things").size mustEqual 1000
     }
   }
 }

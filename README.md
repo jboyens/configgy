@@ -46,6 +46,11 @@ flexibility of java logging, but making it easy to do the common case of
 creating a single logfile with one debug level.
 
 
+## Building
+
+    $ ant
+
+
 ## Quick Start
 
 This is all you need to know to use the library:
@@ -58,7 +63,7 @@ This is all you need to know to use the library:
     
     // read hostname and port:
     val config = Configgy.config
-    val hostname = config.get("hostname", "localhost")
+    val hostname = config.getString("hostname", "localhost")
     val port = config.getInt("port", 3000)
     
     // log an error:
@@ -143,7 +148,7 @@ as if they were in C structs, using dotted-name notation. So the above config is
 
 ### Logging
 
-Logging is configured in a special `<log>` block. The main logging options
+Logging is configured in a special `log` block. The main logging options
 are described below.
 
 - `filename` -
@@ -490,6 +495,9 @@ with a cleaner interface.
 
 
 ## Contact
+
+There's a mailing list for configgy development: <configgy@googlegroups.com>.
+You can subscribe here: http://groups.google.com/group/configgy
 
 Configgy was written by Robey Pointer <robeypointer@gmail.com> and is licensed
 under the Apache 2 license (included). Please write me with questions or

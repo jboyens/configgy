@@ -27,7 +27,10 @@ import net.lag.extensions._
  * during parsing. The `reason` string will contain the parsing
  * error details.
  */
-class ParseException(reason: String) extends Exception(reason)
+class ParseException(reason: String, cause: Throwable) extends Exception(reason, cause) {
+	def this(reason: String) = this(reason, null)
+	def this(cause: Throwable) = this(null, cause)
+}
 
 
 private[configgy] class ConfigParser(var attr: Attributes, val importer: Importer) extends RegexParsers {
@@ -41,13 +44,13 @@ private[configgy] class ConfigParser(var attr: Attributes, val importer: Importe
   // tokens
   override val whiteSpace = """(\s+|#[^\n]*\n)+""".r
   val numberToken: Parser[String] = """-?\d+(\.\d+)?""".r
-  val stringToken: Parser[String] = """([^\\\"]|\\[^ux]|\\\n|\\u[0-9a-fA-F]{4}|\\x[0-9a-fA-F]{2})*""".r
+  val stringToken: Parser[String] = ("\"" + """([^\\\"]|\\[^ux]|\\\n|\\u[0-9a-fA-F]{4}|\\x[0-9a-fA-F]{2})*""" + "\"").r
   val identToken: Parser[String] = """([\da-zA-Z_][-\w]*)(\.[a-zA-Z_][-\w]*)*""".r
   val assignToken: Parser[String] = """=|\?=""".r
   val tagNameToken: Parser[String] = """[a-zA-Z][-\w]*""".r
 
 
-  def root = rep(includeFile | assignment | toggle | sectionOpen | sectionClose |
+  def root = rep(includeFile | includeOptFile | assignment | toggle | sectionOpen | sectionClose |
                  sectionOpenBrace | sectionCloseBrace)
 
   def includeFile = "include" ~> string ^^ {
@@ -55,12 +58,17 @@ private[configgy] class ConfigParser(var attr: Attributes, val importer: Importe
       new ConfigParser(attr.makeAttributes(sectionsString), importer) parse importer.importFile(filename)
   }
 
+  def includeOptFile = "include?" ~> string ^^ {
+    case filename: String =>
+      new ConfigParser(attr.makeAttributes(sections.mkString(".")), importer) parse importer.importFile(filename, false)
+  }
+
   def assignment = identToken ~ assignToken ~ value ^^ {
     case k ~ a ~ v => if (a match {
       case "=" => true
       case "?=" => ! attr.contains(prefix + k)
     }) v match {
-      case x: Int => attr(prefix + k) = x
+      case x: Long => attr(prefix + k) = x
       case x: String => attr(prefix + k) = x
       case x: Array[String] => attr(prefix + k) = x
       case x: Boolean => attr(prefix + k) = x
@@ -86,8 +94,10 @@ private[configgy] class ConfigParser(var attr: Attributes, val importer: Importe
     prefix = sectionsString + "."
     val newBlock = attr.makeAttributes(sectionsString)
     for ((k, v) <- attrList) k match {
-      case "inherit" => newBlock.inheritFrom = Some(if (parent.getConfigMap(v).isDefined) parent.makeAttributes(v) else attr.makeAttributes(v))
-      case _ => throw new ParseException("Unknown block modifier")
+      case "inherit" =>
+        newBlock.inheritFrom = Some(if (parent.getConfigMap(v).isDefined) parent.makeAttributes(v) else attr.makeAttributes(v))
+      case _ =>
+        throw new ParseException("Unknown block modifier")
     }
   }
 
@@ -106,8 +116,8 @@ private[configgy] class ConfigParser(var attr: Attributes, val importer: Importe
 
 
   def value: Parser[Any] = number | string | stringList | trueFalse
-  def number = numberToken ^^ { x => if (x.contains('.')) x else x.toInt }
-  def string = "\"" ~> stringToken <~ "\"" ^^ { s => attr.interpolate(prefix, s.unquoteC) }
+  def number = numberToken ^^ { x => if (x.contains('.')) x else x.toLong }
+  def string = stringToken ^^ { s => attr.interpolate(prefix, s.substring(1, s.length - 1).unquoteC) }
   def stringList = "[" ~> repsep(string | numberToken, opt(",")) <~ (opt(",") ~ "]") ^^ { list => list.toArray }
   def trueFalse: Parser[Boolean] = ("(true|on)".r ^^ { x => true }) | ("(false|off)".r ^^ { x => false })
 

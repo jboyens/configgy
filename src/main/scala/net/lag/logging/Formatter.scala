@@ -25,11 +25,11 @@ import net.lag.extensions._
 
 private[logging] object Formatter {
   // FIXME: might be nice to unmangle some scala names here.
-  private[logging] def formatStackTrace(t: Throwable, limit: Int): mutable.ArrayBuffer[String] = {
-    var out = new mutable.ArrayBuffer[String]
-    out ++= (for (elem <- t.getStackTrace) yield "    at %s".format(elem.toString))
+  private[logging] def formatStackTrace(t: Throwable, limit: Int): mutable.ListBuffer[String] = {
+    var out = new mutable.ListBuffer[String]
+    out ++= t.getStackTrace.map { elem => "    at %s".format(elem.toString) }
     if (out.length > limit) {
-      out = new mutable.ArrayBuffer[String] ++ out.take(limit)
+      out.trimEnd(out.length - limit)
       out += "    (...more...)"
     }
     if (t.getCause ne null) {

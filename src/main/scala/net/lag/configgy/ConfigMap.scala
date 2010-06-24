@@ -395,4 +395,7 @@ trait ConfigMap {
 
   /** Equivalent to `setList(key, value)`. */
   def update(key: String, value: Seq[String]) = setList(key, value)
+
+  /** Get the name of the current config map. */
+  def getName(): String
 }

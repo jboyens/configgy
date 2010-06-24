@@ -25,11 +25,21 @@ import java.io.{BufferedReader, File, FileInputStream, InputStream, InputStreamR
  */
 trait Importer {
   /**
+   * Imports a requested file and returns the string contents of that file,
+   * if the file exists, and empty string if it does not exist and `required`
+   * is false.
+   *
+   * If the file couldn't be imported, throws a `ParseException`.
+   */
+  @throws(classOf[ParseException])
+  def importFile(filename: String, required: Boolean): String
+
+  /**
    * Imports a requested file and returns the string contents of that file.
    * If the file couldn't be imported, throws a `ParseException`.
    */
   @throws(classOf[ParseException])
-  def importFile(filename: String): String
+  def importFile(filename: String): String = importFile(filename, true)
 
   private val BUFFER_SIZE = 8192
 
@@ -61,15 +71,19 @@ trait Importer {
  * This is the default importer.
  */
 class FilesystemImporter(val baseFolder: String) extends Importer {
-  def importFile(filename: String): String = {
+  def importFile(filename: String, required: Boolean): String = {
     var f = new File(filename)
     if (! f.isAbsolute) {
       f = new File(baseFolder, filename)
     }
-    try {
-      streamToString(new FileInputStream(f))
-    } catch {
-      case x => throw new ParseException(x.toString)
+    if (!required && !f.exists) {
+      ""
+    } else {
+      try {
+        streamToString(new FileInputStream(f))
+      } catch {
+        case x => throw new ParseException(x.toString)
+      }
     }
   }
 }
@@ -80,13 +94,17 @@ class FilesystemImporter(val baseFolder: String) extends Importer {
  * of the system class loader (usually the jar used to launch this app).
  */
 class ResourceImporter(classLoader: ClassLoader) extends Importer {
-  def importFile(filename: String): String = {
+  def importFile(filename: String, required: Boolean): String = {
     try {
       val stream = classLoader.getResourceAsStream(filename)
       if (stream eq null) {
-        throw new ParseException("Can't find resource: " + filename)
+        if (required) {
+          throw new ParseException("Can't find resource: " + filename)
+        }
+        ""
+      } else {
+        streamToString(stream)
       }
-      streamToString(stream)
     } catch {
       case x => throw new ParseException(x.toString)
     }

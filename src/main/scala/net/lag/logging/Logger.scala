@@ -222,6 +222,7 @@ object Logger {
   root.setLevel(INFO)
   root.setLevel(DEBUG)
   root.setLevel(TRACE)
+  root.setLevel(ALL)
   reset
 
 
@@ -250,11 +251,15 @@ object Logger {
    */
   def clearHandlers() = {
     for (logger <- elements) {
-      for (handler <- logger.getHandlers) {
-        try {
-          handler.close()
-        } catch { case _ => () }
-        logger.removeHandler(handler)
+      // some custom Logger implementations may return null from getHandlers
+      val handlers = logger.getHandlers()
+      if (handlers ne null) {
+        for (handler <- logger.getHandlers) {
+          try {
+            handler.close()
+          } catch { case _ => () }
+          logger.removeHandler(handler)
+        }
       }
       logger.setLevel(null)
     }
@@ -326,7 +331,7 @@ object Logger {
     val e = manager.getLoggerNames
     while (e.hasMoreElements) {
       val item = manager.getLogger(e.nextElement.asInstanceOf[String])
-      loggers += get(item.getName())
+      if (item ne null) loggers += get(item.getName)
     }
     loggers.elements
   }
@@ -353,7 +358,7 @@ object Logger {
                        "use_full_package_names", "append", "scribe_server",
                        "scribe_buffer_msec", "scribe_backoff_msec",
                        "scribe_max_packet_size", "scribe_category",
-                       "scribe_max_buffer")
+                       "scribe_max_buffer", "syslog_priority")
     var forbidden = config.keys.filter(x => !(allowed contains x)).toList
     if (allowNestedBlocks) {
       forbidden = forbidden.filter(x => !config.getConfigMap(x).isDefined)
@@ -385,6 +390,9 @@ object Logger {
       val handler = new SyslogHandler(useIsoDateFormat, hostname)
       for (serverName <- config.getString("syslog_server_name")) {
         handler.serverName = serverName
+      }
+      for (priority <- config.getInt("syslog_priority")) {
+        handler.priority = priority
       }
       handlers = handler :: handlers
     }

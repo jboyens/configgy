@@ -24,7 +24,7 @@ import _root_.net.lag.TestHelper
 import org.specs._
 
 
-object ConfigSpec extends Specification with TestHelper {
+class ConfigSpec extends Specification with TestHelper {
 
   class FakeSubscriber extends Subscriber {
     def validate(current: Option[ConfigMap], replacement: Option[ConfigMap]): Unit = { }
@@ -170,25 +170,15 @@ object ConfigSpec extends Specification with TestHelper {
       }
     }
 
-    "include from a resource" in {
-      /* kinda cheaty: we know the current folder is the project root,
-       * so we can stuff something in build-test/ briefly to get it to
-       * appear in the classpath.
-       */
-      val tempFilename = new File(new File(".").getAbsolutePath, "target/test-classes/happy.conf")
-      try {
-        val data1 = "commie = 501\n"
-        val f1 = new FileOutputStream(tempFilename)
-        f1.write(data1.getBytes)
-        f1.close
+    "load a test resource as a sanity check" in {
+      getClass.getClassLoader.getResource("happy.conf") mustNot beNull
+    }
 
-        val c = new Config
-        c.importer = new ResourceImporter(ClassLoader.getSystemClassLoader)
-        c.load("include \"happy.conf\"\n")
-        c.toString mustEqual "{: commie=\"501\" }"
-      } finally {
-        tempFilename.delete
-      }
+    "include from a resource" in {
+      val c = new Config
+      c.importer = new ResourceImporter(getClass.getClassLoader)
+      c.load("include \"happy.conf\"\n")
+      c.toString mustEqual "{: commie=\"501\" }"
     }
 
     "build from a map" in {
@@ -197,6 +187,7 @@ object ConfigSpec extends Specification with TestHelper {
       c("oranges") mustEqual "17"
       c("fruit.misc") mustEqual "x,y,z"
       c.toString mustEqual "{: apples=\"23\" fruit={fruit: misc=\"x,y,z\" } oranges=\"17\" }"
+      c.configMap("fruit").getName mustEqual "fruit"
     }
 
     "register jmx" in {
@@ -206,6 +197,30 @@ object ConfigSpec extends Specification with TestHelper {
       mbs.getAttribute(new jmx.ObjectName("com.example.test:type=Config,name=(root)"), "apples") mustEqual "23"
       mbs.getAttribute(new jmx.ObjectName("com.example.test:type=Config,name=(root)"), "oranges") mustEqual "17"
       mbs.getAttribute(new jmx.ObjectName("com.example.test:type=Config,name=fruit"), "misc") mustEqual "x,y,z"
+    }
+
+    "reload from string" in {
+      val c = Config.fromString("""apples="23" oranges="17" basket { apples = true oranges = false }""")
+      c("apples") mustEqual "23"
+      c("oranges") mustEqual "17"
+      c("basket.apples", false) mustEqual true
+      c("basket.oranges", false) mustEqual false
+      c.setString("apples", "red")
+      c.configMap("basket").setBool("apples", false)
+      c("apples") mustEqual "red"
+      c("basket.apples", false) mustEqual false
+      c.reload()
+      c("apples") mustEqual "23"
+      c("basket.apples", false) mustEqual true
+    }
+    
+    "reload from a file" in {
+      val c = Config.fromResource("happy.conf", getClass.getClassLoader)
+      c.getInt("commie") mustEqual Some(501)
+      c.setInt("commie", 401)
+      c.getInt("commie") mustEqual Some(401)
+      c.reload()
+      c.getInt("commie") mustEqual Some(501)
     }
   }
 }

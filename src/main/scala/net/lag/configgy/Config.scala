@@ -119,6 +119,7 @@ class Config extends ConfigMap {
   private var jmxNodes: List[String] = Nil
   private var jmxPackageName: String = ""
   private var jmxSubscriptionKey: Option[SubscriptionKey] = None
+  private var reloadAction: Option[()=>Unit] = None
 
 
   /**
@@ -132,35 +133,48 @@ class Config extends ConfigMap {
   /**
    * Read config data from a string and use it to populate this object.
    */
-  def load(data: String) = {
-    var newRoot = new Attributes(this, "")
-    new ConfigParser(newRoot, importer).parse(data)
+  def load(data: String) {
+    reloadAction = Some(() => configure(data))
+    reload()
+  }
+
+  /**
+   * Read config data from a file and use it to populate this object.
+   */
+  def loadFile(filename: String) {
+    reloadAction = Some(() => configure(importer.importFile(filename)))
+    reload()
+  }
+
+  /**
+   * Read config data from a file and use it to populate this object.
+   */
+  def loadFile(path: String, filename: String) {
+    importer = new FilesystemImporter(path)
+    loadFile(filename)
+  }
+
+  /**
+   * Reloads the configuration from whatever source it was previously loaded
+   * from, undoing any in-memory changes.  This is a no-op if the configuration
+   * data has not be loaded from a source (file or string).
+   */
+  def reload() {
+    reloadAction.foreach(_())
+  }
+
+  private def configure(data: String) {
+    val newRoot = new Attributes(this, "")
+    new ConfigParser(newRoot, importer) parse data
 
     if (root.isMonitored) {
       // throws exception if validation fails:
-      subscribers.validate(Nil, Some(root), Some(newRoot), VALIDATE_PHASE)
-      subscribers.validate(Nil, Some(root), Some(newRoot), COMMIT_PHASE)
+      List(VALIDATE_PHASE, COMMIT_PHASE) foreach (p => subscribers.validate(Nil, Some(root), Some(newRoot), p))
     }
 
     if (root.isMonitored) newRoot.setMonitored
     root.replaceWith(newRoot)
   }
-
-  /**
-   * Read config data from a file and use it to populate this object.
-   */
-  def loadFile(filename: String) = {
-    load(importer.importFile(filename))
-  }
-
-  /**
-   * Read config data from a file and use it to populate this object.
-   */
-  def loadFile(path: String, filename: String) = {
-    importer = new FilesystemImporter(path)
-    load(importer.importFile(filename))
-  }
-
 
   override def toString = root.toString
 
@@ -311,6 +325,7 @@ class Config extends ConfigMap {
   def copy(): ConfigMap = root.copy()
   def inheritFrom = root.inheritFrom
   def inheritFrom_=(config: Option[ConfigMap]) = root.inheritFrom=(config)
+  def getName(): String = root.name
 }
 
 
